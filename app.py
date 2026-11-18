@@ -1,4 +1,3 @@
-import os
 from flask import Flask, jsonify, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import SQLAlchemyError
@@ -9,13 +8,17 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+DEFAULT_PAGE = 1
+DEFAULT_PAGE_SIZE = 20
+
 
 class Task(db.Model):
-    """Database model representing a task on the dynamic board."""
+    """Database model representing a single task item on the board."""
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
 
     def to_dict(self):
+        """Serialize the Task instance into a JSON-compatible dictionary."""
         return {"id": self.id, "title": self.title}
 
 
@@ -25,15 +28,21 @@ with app.app_context():
 
 @app.route('/', methods=['GET'])
 def index():
-    """Render the main task board web page."""
+    """
+    Serve the main task board HTML page.
+    Renders the front-end UI where users interact with tasks via Fetch API.
+    """
     return render_template('index.html')
 
 
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
-    """Return paginated tasks as a JSON list."""
-    page = request.args.get('page', 1, type=int)
-    size = request.args.get('size', 20, type=int)
+    """
+    Retrieve a paginated list of tasks from the SQLite database.
+    Accepts optional query parameters 'page' and 'size' and returns JSON.
+    """
+    page = request.args.get('page', DEFAULT_PAGE, type=int)
+    size = request.args.get('size', DEFAULT_PAGE_SIZE, type=int)
     pagination = Task.query.paginate(page=page, per_page=size, error_out=False)
     return jsonify({
         "tasks": [task.to_dict() for task in pagination.items],
@@ -45,7 +54,10 @@ def get_tasks():
 
 @app.route('/api/tasks', methods=['POST'])
 def add_task():
-    """Create a new task from JSON payload."""
+    """
+    Create a new task from a JSON request body containing 'title'.
+    Validates non-empty input up to 200 characters and returns HTTP 201.
+    """
     data = request.get_json() or {}
     title = str(data.get('title', '')).strip()
     if not title or len(title) > 200:
@@ -63,7 +75,10 @@ def add_task():
 
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
-    """Delete a task by its ID."""
+    """
+    Delete an existing task identified by its integer 'task_id'.
+    Returns HTTP 200 upon deletion or HTTP 404 if the task does not exist.
+    """
     task = db.session.get(Task, task_id)
     if not task:
         return jsonify({"error": "Task not found"}), 404
@@ -78,4 +93,4 @@ def delete_task(task_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=os.getenv('FLASK_DEBUG', '0') == '1')
+    app.run(debug=True)
