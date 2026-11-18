@@ -1,3 +1,4 @@
+import os
 from flask import Flask, jsonify, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import SQLAlchemyError
@@ -30,9 +31,16 @@ def index():
 
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
-    """Return all tasks as a JSON list."""
-    tasks = Task.query.all()
-    return jsonify({"tasks": [task.to_dict() for task in tasks]}), 200
+    """Return paginated tasks as a JSON list."""
+    page = request.args.get('page', 1, type=int)
+    size = request.args.get('size', 20, type=int)
+    pagination = Task.query.paginate(page=page, per_page=size, error_out=False)
+    return jsonify({
+        "tasks": [task.to_dict() for task in pagination.items],
+        "total": pagination.total,
+        "page": pagination.page,
+        "pages": pagination.pages
+    }), 200
 
 
 @app.route('/api/tasks', methods=['POST'])
@@ -70,4 +78,4 @@ def delete_task(task_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.getenv('FLASK_DEBUG', '0') == '1')
